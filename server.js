@@ -46,12 +46,12 @@ app.get('/health', (req, res) => {
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/deposits', require('./routes/deposits'));
 app.use('/api/withdrawals', require('./routes/withdrawals'));
+app.use('/api/trading', require('./routes/trading'));
+app.use('/api/market', require('./routes/market'));
 // Note: Other routes will be created as needed
 // app.use('/api/auth', require('./routes/auth'));
 // app.use('/api/users', require('./routes/users'));
-// app.use('/api/trading', require('./routes/trading'));
 // app.use('/api/admin', require('./routes/admin'));
-// app.use('/api/market', require('./routes/market'));
 
 // 404 handler
 app.use('*', (req, res) => {
