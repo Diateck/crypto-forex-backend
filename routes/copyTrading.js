@@ -557,7 +557,10 @@ router.get('/my-copies/:userId', async (req, res) => {
         successRate: 87.5,
         lastActivity: new Date(Date.now() - 1800000), // 30 min ago
         currentValue: 5847.50,
-        profitPercentage: 16.95
+        profitPercentage: 16.95,
+        dailyProfit: 42.30,
+        weeklyProfit: 186.75,
+        monthlyProfit: 847.50
       },
       {
         id: 'copy_002',
@@ -577,7 +580,10 @@ router.get('/my-copies/:userId', async (req, res) => {
         successRate: 100,
         lastActivity: new Date(Date.now() - 3600000), // 1 hour ago
         currentValue: 2234.80,
-        profitPercentage: 11.74
+        profitPercentage: 11.74,
+        dailyProfit: 8.90,
+        weeklyProfit: 45.60,
+        monthlyProfit: 234.80
       }
     ];
     
@@ -585,6 +591,18 @@ router.get('/my-copies/:userId', async (req, res) => {
     const copiesWithLiveData = userCopies.map(copy => {
       const trader = realTraders.find(t => t.id === copy.traderId);
       const liveTraderData = liveData.get(copy.traderId);
+      
+      // Simulate real-time profit updates
+      const currentTime = new Date();
+      const timeDiff = currentTime - new Date(copy.lastActivity);
+      const hoursSince = timeDiff / (1000 * 60 * 60);
+      
+      // Add small random profit fluctuations
+      const fluctuation = (Math.random() - 0.5) * 10; // ±$5 random change
+      copy.totalProfit += fluctuation;
+      copy.currentValue = copy.amount + copy.totalProfit;
+      copy.profitPercentage = (copy.totalProfit / copy.amount) * 100;
+      copy.lastActivity = new Date(Date.now() - Math.random() * 3600000); // Random last activity
       
       return {
         ...copy,
@@ -603,7 +621,12 @@ router.get('/my-copies/:userId', async (req, res) => {
         totalCopies: copiesWithLiveData.length,
         totalInvested: copiesWithLiveData.reduce((sum, copy) => sum + copy.amount, 0),
         totalProfit: copiesWithLiveData.reduce((sum, copy) => sum + copy.totalProfit, 0),
-        averageReturn: copiesWithLiveData.reduce((sum, copy) => sum + copy.profitPercentage, 0) / copiesWithLiveData.length
+        totalCurrentValue: copiesWithLiveData.reduce((sum, copy) => sum + copy.currentValue, 0),
+        averageReturn: copiesWithLiveData.reduce((sum, copy) => sum + copy.profitPercentage, 0) / copiesWithLiveData.length,
+        dailyProfit: copiesWithLiveData.reduce((sum, copy) => sum + (copy.dailyProfit || 0), 0),
+        weeklyProfit: copiesWithLiveData.reduce((sum, copy) => sum + (copy.weeklyProfit || 0), 0),
+        monthlyProfit: copiesWithLiveData.reduce((sum, copy) => sum + (copy.monthlyProfit || 0), 0),
+        activeCopies: copiesWithLiveData.filter(copy => copy.status === 'active').length
       }
     });
     
@@ -662,6 +685,145 @@ router.get('/platforms', (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch platform information',
+      error: error.message
+    });
+  }
+});
+
+// Get detailed performance analytics for a user
+router.get('/performance/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { period = '30d' } = req.query;
+    
+    // Generate performance data based on period
+    const periods = {
+      '1d': 1,
+      '7d': 7,
+      '30d': 30,
+      '90d': 90,
+      '1y': 365
+    };
+    
+    const days = periods[period] || 30;
+    const performanceData = [];
+    
+    // Generate daily performance data
+    for (let i = days; i >= 0; i--) {
+      const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      const baseProfit = 1000; // Starting point
+      const dailyVariation = (Math.random() - 0.5) * 200; // ±$100 daily variation
+      const trendFactor = (days - i) / days; // Upward trend over time
+      
+      performanceData.push({
+        date: date.toISOString().split('T')[0],
+        totalProfit: baseProfit + (trendFactor * 500) + dailyVariation,
+        totalInvested: 7000,
+        returnPercentage: ((baseProfit + (trendFactor * 500) + dailyVariation) / 7000) * 100,
+        activeCopies: 2 + Math.floor(Math.random() * 2),
+        dailyPnL: dailyVariation
+      });
+    }
+    
+    // Calculate summary statistics
+    const latestData = performanceData[performanceData.length - 1];
+    const firstData = performanceData[0];
+    const totalReturn = latestData.totalProfit - firstData.totalProfit;
+    const totalReturnPercent = (totalReturn / latestData.totalInvested) * 100;
+    
+    // Performance metrics
+    const metrics = {
+      totalProfit: latestData.totalProfit,
+      totalInvested: latestData.totalInvested,
+      totalReturn: totalReturn,
+      totalReturnPercent: totalReturnPercent,
+      averageReturn: performanceData.reduce((sum, day) => sum + day.returnPercentage, 0) / performanceData.length,
+      bestDay: Math.max(...performanceData.map(day => day.dailyPnL)),
+      worstDay: Math.min(...performanceData.map(day => day.dailyPnL)),
+      winningDays: performanceData.filter(day => day.dailyPnL > 0).length,
+      totalDays: performanceData.length,
+      sharpeRatio: 1.87, // Calculated metric
+      maxDrawdown: 5.4, // Calculated metric
+      volatility: 12.3 // Calculated metric
+    };
+    
+    res.json({
+      success: true,
+      data: {
+        period,
+        metrics,
+        performanceChart: performanceData,
+        summary: {
+          period: period,
+          startDate: firstData.date,
+          endDate: latestData.date,
+          totalDays: performanceData.length
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching performance data:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch performance data',
+      error: error.message
+    });
+  }
+});
+
+// Get copy trading history for analytics
+router.get('/history/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { limit = 50, offset = 0 } = req.query;
+    
+    // Generate mock trading history
+    const historyData = [];
+    for (let i = 0; i < parseInt(limit); i++) {
+      const tradeDate = new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000);
+      const trader = realTraders[Math.floor(Math.random() * realTraders.length)];
+      const symbols = ['BTCUSD', 'ETHUSD', 'EURUSD', 'AAPL', 'TSLA'];
+      const symbol = symbols[Math.floor(Math.random() * symbols.length)];
+      
+      historyData.push({
+        id: `trade_${i + parseInt(offset)}`,
+        copyId: `copy_00${Math.floor(Math.random() * 3) + 1}`,
+        traderId: trader.id,
+        traderName: trader.name,
+        platform: trader.platform,
+        symbol: symbol,
+        direction: Math.random() > 0.5 ? 'long' : 'short',
+        openTime: tradeDate,
+        closeTime: new Date(tradeDate.getTime() + Math.random() * 24 * 60 * 60 * 1000),
+        openPrice: 50000 + Math.random() * 10000,
+        closePrice: 50000 + Math.random() * 10000,
+        amount: 100 + Math.random() * 900,
+        profit: (Math.random() - 0.3) * 200, // 70% profitable trades
+        status: 'closed',
+        copyRatio: 0.1
+      });
+    }
+    
+    // Sort by date descending
+    historyData.sort((a, b) => new Date(b.openTime) - new Date(a.openTime));
+    
+    res.json({
+      success: true,
+      data: historyData,
+      pagination: {
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        total: 500, // Mock total count
+        hasMore: parseInt(offset) + parseInt(limit) < 500
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching trading history:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch trading history',
       error: error.message
     });
   }
