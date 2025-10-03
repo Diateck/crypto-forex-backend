@@ -43,6 +43,7 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes
+app.use('/api/auth', require('./routes/userAuth')); // User authentication routes
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/deposits', require('./routes/deposits'));
 app.use('/api/withdrawals', require('./routes/withdrawals'));
@@ -51,9 +52,6 @@ app.use('/api/market', require('./routes/market'));
 app.use('/api/copy-trading', require('./routes/copyTrading'));
 app.use('/api/admin-auth', require('./routes/adminAuth').router);
 app.use('/api/admin', require('./routes/admin'));
-// Note: Other routes will be created as needed
-// app.use('/api/auth', require('./routes/auth'));
-// app.use('/api/users', require('./routes/users'));
 
 // 404 handler
 app.use('*', (req, res) => {
