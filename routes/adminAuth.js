@@ -9,7 +9,7 @@ let adminUsers = [
     id: 'admin_001',
     username: 'admin',
     email: 'admin@eloninvestment.com',
-    password: '$2a$10$eiSQ3jOLqPMMAYZsc.OgreSbglKH52J4M4CER6YCVSBrUXd/lgwqC', // password: "admin123"
+    password: '$2a$12$TqGDt.8V.YKdR7o7l7OMUe8XnqKh5/lPWM3JxSP5FV8lGQrV8zvnO', // password: "admin123" (updated hash)
     fullName: 'System Administrator',
     role: 'super_admin',
     permissions: ['all'],
@@ -24,7 +24,7 @@ let adminUsers = [
 // JWT secret (in production, use environment variable)
 const JWT_SECRET = process.env.JWT_SECRET || 'admin_secret_key_2025_elon_investment';
 const JWT_EXPIRES_IN = '24h';
-const MAX_LOGIN_ATTEMPTS = 5;
+const MAX_LOGIN_ATTEMPTS = 10;
 const LOCK_TIME = 30 * 60 * 1000; // 30 minutes
 
 // Middleware to verify admin JWT token
@@ -93,7 +93,8 @@ router.post('/login', async (req, res) => {
     if (adminIndex === -1) {
       return res.status(401).json({
         success: false,
-        error: 'Invalid credentials'
+        error: 'Invalid credentials',
+        errorType: 'credentials' // Add error type for frontend
       });
     }
     
@@ -128,7 +129,8 @@ router.post('/login', async (req, res) => {
         success: false,
         error: attemptsLeft > 0 
           ? `Invalid credentials. ${attemptsLeft} attempts remaining.`
-          : 'Account locked due to multiple failed attempts.'
+          : 'Account locked due to multiple failed attempts.',
+        errorType: 'credentials' // Add error type for frontend
       });
     }
     
