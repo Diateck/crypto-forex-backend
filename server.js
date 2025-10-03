@@ -49,6 +49,7 @@ app.use('/api/withdrawals', require('./routes/withdrawals'));
 app.use('/api/trading', require('./routes/trading'));
 app.use('/api/market', require('./routes/market'));
 app.use('/api/copy-trading', require('./routes/copyTrading'));
+app.use('/api/admin-auth', require('./routes/adminAuth').router);
 app.use('/api/admin', require('./routes/admin'));
 // Note: Other routes will be created as needed
 // app.use('/api/auth', require('./routes/auth'));

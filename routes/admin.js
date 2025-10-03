@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { verifyAdminToken } = require('./adminAuth');
 
 // Import existing data from other routes (in real app, this would be from shared database)
 // For demo purposes, we'll simulate admin access to all user data
@@ -96,7 +97,7 @@ let adminUsers = [
 ];
 
 // Dashboard Overview - Get all platform statistics
-router.get('/dashboard', (req, res) => {
+router.get('/dashboard', verifyAdminToken, (req, res) => {
   try {
     // Import data from other modules (in real app, this would be database queries)
     const deposits = require('./deposits'); // This won't work in real code, just for demo
@@ -164,7 +165,7 @@ router.get('/dashboard', (req, res) => {
 });
 
 // User Management Routes
-router.get('/users', (req, res) => {
+router.get('/users', verifyAdminToken, (req, res) => {
   try {
     const { 
       status, 
@@ -230,7 +231,7 @@ router.get('/users', (req, res) => {
 });
 
 // Get specific user details
-router.get('/users/:userId', (req, res) => {
+router.get('/users/:userId', verifyAdminToken, (req, res) => {
   try {
     const { userId } = req.params;
     const user = users.find(u => u.id === userId);
@@ -277,7 +278,7 @@ router.get('/users/:userId', (req, res) => {
 });
 
 // Update user status
-router.put('/users/:userId/status', (req, res) => {
+router.put('/users/:userId/status', verifyAdminToken, (req, res) => {
   try {
     const { userId } = req.params;
     const { status, reason } = req.body;
@@ -319,7 +320,7 @@ router.put('/users/:userId/status', (req, res) => {
 });
 
 // KYC Management Routes
-router.get('/kyc', (req, res) => {
+router.get('/kyc', verifyAdminToken, (req, res) => {
   try {
     const { status, page = 1, limit = 10 } = req.query;
     
@@ -380,7 +381,7 @@ router.get('/kyc', (req, res) => {
 });
 
 // Approve KYC
-router.put('/kyc/:userId/approve', (req, res) => {
+router.put('/kyc/:userId/approve', verifyAdminToken, (req, res) => {
   try {
     const { userId } = req.params;
     const { adminNotes } = req.body;
@@ -415,7 +416,7 @@ router.put('/kyc/:userId/approve', (req, res) => {
 });
 
 // Reject KYC
-router.put('/kyc/:userId/reject', (req, res) => {
+router.put('/kyc/:userId/reject', verifyAdminToken, (req, res) => {
   try {
     const { userId } = req.params;
     const { rejectionReason, adminNotes } = req.body;
@@ -457,7 +458,7 @@ router.put('/kyc/:userId/reject', (req, res) => {
 });
 
 // Financial Management - Get all deposits (proxy to deposits route with admin data)
-router.get('/deposits', (req, res) => {
+router.get('/deposits', verifyAdminToken, (req, res) => {
   try {
     // This would normally call the deposits route or query the database directly
     // For now, simulate admin access to all deposits
@@ -516,7 +517,7 @@ router.get('/deposits', (req, res) => {
 });
 
 // Financial Management - Get all withdrawals (proxy to withdrawals route with admin data)
-router.get('/withdrawals', (req, res) => {
+router.get('/withdrawals', verifyAdminToken, (req, res) => {
   try {
     // This would normally call the withdrawals route or query the database directly
     res.json({
@@ -573,7 +574,7 @@ router.get('/withdrawals', (req, res) => {
 });
 
 // Trading Management - Get all trading activity
-router.get('/trading', (req, res) => {
+router.get('/trading', verifyAdminToken, (req, res) => {
   try {
     const { status, page = 1, limit = 10 } = req.query;
     
@@ -648,7 +649,7 @@ router.get('/trading', (req, res) => {
 });
 
 // System Settings and Configuration
-router.get('/settings', (req, res) => {
+router.get('/settings', verifyAdminToken, (req, res) => {
   try {
     const settings = {
       platform: {
@@ -697,7 +698,7 @@ router.get('/settings', (req, res) => {
 });
 
 // Update system settings
-router.put('/settings', (req, res) => {
+router.put('/settings', verifyAdminToken, (req, res) => {
   try {
     const { settings } = req.body;
     
@@ -719,7 +720,7 @@ router.put('/settings', (req, res) => {
 });
 
 // Activity Logs
-router.get('/logs', (req, res) => {
+router.get('/logs', verifyAdminToken, (req, res) => {
   try {
     const { type, page = 1, limit = 20 } = req.query;
     
