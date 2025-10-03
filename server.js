@@ -32,13 +32,69 @@ app.use(express.urlencoded({ extended: true }));
 // Logging middleware
 app.use(morgan('combined'));
 
-// Health check endpoint
+// Keep-alive and performance tracking
+let serverStartTime = new Date();
+let lastHealthCheck = null;
+let healthCheckCount = 0;
+let totalResponseTime = 0;
+
+// Enhanced health check endpoint for keep-alive system
 app.get('/health', (req, res) => {
+  const startTime = Date.now();
+  
+  healthCheckCount++;
+  lastHealthCheck = new Date();
+  
+  // Calculate server uptime
+  const uptime = Date.now() - serverStartTime.getTime();
+  const uptimeFormatted = Math.floor(uptime / 1000 / 60); // minutes
+  
+  // Response time tracking
+  const responseTime = Date.now() - startTime;
+  totalResponseTime += responseTime;
+  const avgResponseTime = Math.round(totalResponseTime / healthCheckCount);
+  
   res.status(200).json({
     status: 'OK',
     message: 'Crypto Forex Trading API is running',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    uptime: `${uptimeFormatted} minutes`,
+    healthChecks: healthCheckCount,
+    avgResponseTime: `${avgResponseTime}ms`,
+    memory: {
+      used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
+      total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + 'MB'
+    },
+    keepAlive: {
+      lastCheck: lastHealthCheck,
+      frequency: 'Every 5 minutes',
+      purpose: 'Prevent server cold start'
+    }
+  });
+});
+
+// Lightweight keep-alive endpoint (faster response)
+app.get('/ping', (req, res) => {
+  res.status(200).json({
+    status: 'alive',
+    timestamp: Date.now(),
+    pong: true
+  });
+});
+
+// Keep-alive stats endpoint
+app.get('/keep-alive-stats', (req, res) => {
+  const uptime = Date.now() - serverStartTime.getTime();
+  
+  res.status(200).json({
+    serverStartTime: serverStartTime.toISOString(),
+    uptime: Math.floor(uptime / 1000 / 60), // minutes
+    lastHealthCheck: lastHealthCheck,
+    totalHealthChecks: healthCheckCount,
+    avgResponseTime: healthCheckCount > 0 ? Math.round(totalResponseTime / healthCheckCount) : 0,
+    memory: process.memoryUsage(),
+    status: 'healthy'
   });
 });
 
@@ -52,6 +108,23 @@ app.use('/api/market', require('./routes/market'));
 app.use('/api/copy-trading', require('./routes/copyTrading'));
 app.use('/api/admin-auth', require('./routes/adminAuth').router);
 app.use('/api/admin', require('./routes/admin'));
+
+// Keep-alive routes (both with and without /api prefix for flexibility)
+app.use('/keep-alive', require('./routes/keepAlive'));
+app.use('/api/keep-alive', require('./routes/keepAlive'));
+
+// Keep-alive optimizations
+setInterval(() => {
+  // Keep event loop active
+  const used = process.memoryUsage();
+  console.log(`🔄 Keep-alive heartbeat - Memory: ${Math.round(used.heapUsed / 1024 / 1024)}MB`);
+}, 4 * 60 * 1000); // Every 4 minutes
+
+// Prevent process from sleeping
+setInterval(() => {
+  // Light CPU activity to prevent hibernation
+  Date.now();
+}, 30 * 1000); // Every 30 seconds
 
 // 404 handler
 app.use('*', (req, res) => {
