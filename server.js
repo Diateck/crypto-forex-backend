@@ -106,6 +106,10 @@ app.use('/api/withdrawals', require('./routes/withdrawals'));
 app.use('/api/trading', require('./routes/trading'));
 app.use('/api/market', require('./routes/market'));
 app.use('/api/copy-trading', require('./routes/copyTrading'));
+app.use('/api/plans', require('./routes/plans')); // Investment plans
+app.use('/api/kyc', require('./routes/kyc')); // KYC verification
+app.use('/api/referrals', require('./routes/referrals')); // Referral system
+app.use('/api/loans', require('./routes/loans')); // Loan applications
 app.use('/api/admin-auth', require('./routes/adminAuth').router);
 app.use('/api/admin', require('./routes/admin'));
 
