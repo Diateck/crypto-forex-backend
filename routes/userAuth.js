@@ -9,6 +9,22 @@ const User = require('../models/User');
 // JWT Secret (use environment variable in production)
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
+// Simple request logger for auth routes (masks passwords)
+router.use((req, res, next) => {
+  try {
+    const safeBody = Object.assign({}, req.body || {});
+    if (safeBody.password) safeBody.password = '[REDACTED]';
+    if (safeBody.currentPassword) safeBody.currentPassword = '[REDACTED]';
+    if (safeBody.newPassword) safeBody.newPassword = '[REDACTED]';
+
+    console.log(`[Auth] ${new Date().toISOString()} ${req.method} ${req.originalUrl} - body:`, safeBody);
+  } catch (err) {
+    // don't break requests if logging fails
+    console.error('[Auth] Request logging failed', err);
+  }
+  next();
+});
+
 // User registration
 router.post('/register', async (req, res) => {
   try {
