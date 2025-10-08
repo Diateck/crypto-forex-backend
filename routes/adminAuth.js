@@ -10,6 +10,27 @@ const User = require('../models/User');
 // JWT secret (in production, use environment variable)
 const JWT_SECRET = process.env.JWT_SECRET || 'admin_secret_key_2025_elon_investment';
 const JWT_EXPIRES_IN = '24h';
+
+// Middleware to verify admin JWT token
+function verifyAdminToken(req, res, next) {
+  const token = req.header('Authorization')?.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      error: 'Access denied. No token provided.'
+    });
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.admin = decoded;
+    next();
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: 'Invalid token.'
+    });
+  }
+}
 // ...existing code...
 // POST /api/admin-auth/login - Admin login
 router.post('/login', async (req, res) => {
