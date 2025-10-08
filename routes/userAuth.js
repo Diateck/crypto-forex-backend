@@ -161,61 +161,44 @@ router.post('/login', async (req, res) => {
 
 // Verify token middleware
 const verifyUserToken = (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader) {
-      return res.status(401).json({
-        success: false,
-        message: 'Access token is required'
-      });
-    }
-
-    const token = authHeader.split(' ')[1]; // Bearer <token>
-    
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'Access token is required'
-      });
-    }
-
-    // Verify JWT
-    const decoded = jwt.verify(token, JWT_SECRET);
-    
-    // Check if user exists
-    const user = users.find(u => u.id === decoded.userId);
-    if (!user || !user.isActive) {
+  (async () => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({
+          success: false,
+          message: 'Access token is required'
+        });
+      }
+      const token = authHeader.split(' ')[1]; // Bearer <token>
+      if (!token) {
+        return res.status(401).json({
+          success: false,
+          message: 'Access token is required'
+        });
+      }
+      // Verify JWT
+      const decoded = jwt.verify(token, JWT_SECRET);
+      // Check if user exists in PostgreSQL
+      const user = await User.findByPk(decoded.userId);
+      if (!user || !user.isActive) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid or expired token'
+        });
+      }
+      // Add user to request
+      req.user = user;
+      req.userId = user.id;
+      next();
+    } catch (error) {
+      console.error('Token verification error:', error);
       return res.status(401).json({
         success: false,
         message: 'Invalid or expired token'
       });
     }
-
-    // Check session
-    const session = userSessions.get(user.id);
-    if (!session || session.token !== token) {
-      return res.status(401).json({
-        success: false,
-        message: 'Session expired. Please login again.'
-      });
-    }
-
-    // Update last activity
-    session.lastActivity = new Date().toISOString();
-    
-    // Add user to request
-    req.user = user;
-    req.userId = user.id;
-    
-    next();
-  } catch (error) {
-    console.error('Token verification error:', error);
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid or expired token'
-    });
-  }
+  })();
 };
 
 // Get current user profile
