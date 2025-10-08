@@ -28,7 +28,7 @@ router.use((req, res, next) => {
 // User registration
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password } = req.body || {};
 
     // Validation
     if (!name || !email || !password) {
@@ -55,8 +55,11 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Check if user already exists in PostgreSQL
-    const existingUser = await User.findOne({ where: { email: email.toLowerCase().trim() } });
+    // Normalize email and check if user already exists in PostgreSQL
+    const normalizedEmail = email && typeof email === 'string' ? email.toLowerCase().trim() : null;
+    const existingUser = normalizedEmail
+      ? await User.findOne({ where: { email: normalizedEmail } })
+      : null;
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -70,8 +73,8 @@ router.post('/register', async (req, res) => {
 
     // Create new user in PostgreSQL
     const newUser = await User.create({
-      name: name.trim(),
-      email: email.toLowerCase().trim(),
+      name: name ? name.trim() : null,
+      email: normalizedEmail,
       password: hashedPassword,
       isActive: true
     });
@@ -220,8 +223,9 @@ const verifyUserToken = (req, res, next) => {
 // Get current user profile
 router.get('/profile', verifyUserToken, (req, res) => {
   try {
-    const { password: _, ...userWithoutPassword } = req.user;
-    
+    const userObj = req.user && typeof req.user.toJSON === 'function' ? req.user.toJSON() : (req.user || {});
+    const { password: _, ...userWithoutPassword } = userObj;
+
     res.json({
       success: true,
       data: userWithoutPassword
@@ -238,30 +242,27 @@ router.get('/profile', verifyUserToken, (req, res) => {
 // Update user profile
 router.put('/profile', verifyUserToken, async (req, res) => {
   try {
-    const { name, phoneNumber, address, dateOfBirth, occupation, investmentExperience, riskTolerance } = req.body;
-    
+    const { name } = req.body || {};
+
     const user = req.user;
-    
-    // Update user data
+
+    // Only allow updating safe top-level fields that exist on the model
     if (name) user.name = name.trim();
-    if (phoneNumber !== undefined) user.profile.phoneNumber = phoneNumber;
-    if (address !== undefined) user.profile.address = address;
-    if (dateOfBirth !== undefined) user.profile.dateOfBirth = dateOfBirth;
-    if (occupation !== undefined) user.profile.occupation = occupation;
-    if (investmentExperience !== undefined) user.profile.investmentExperience = investmentExperience;
-    if (riskTolerance !== undefined) user.profile.riskTolerance = riskTolerance;
-    
-    user.updatedAt = new Date().toISOString();
-    
-    // Return updated user data without password
-    const { password: _, ...userWithoutPassword } = user;
-    
+
+    // Persist changes
+    if (typeof user.save === 'function') {
+      await user.save();
+    }
+
+    const userObj = typeof user.toJSON === 'function' ? user.toJSON() : (user || {});
+    const { password: _, ...userWithoutPassword } = userObj;
+
     res.json({
       success: true,
       message: 'Profile updated successfully',
       data: userWithoutPassword
     });
-    
+
   } catch (error) {
     console.error('Profile update error:', error);
     res.status(500).json({
@@ -309,8 +310,14 @@ router.put('/change-password', verifyUserToken, async (req, res) => {
     user.password = hashedNewPassword;
     user.updatedAt = new Date().toISOString();
     
-    // Invalidate all sessions (optional - force re-login)
-    userSessions.delete(user.id);
+    // Invalidate sessions if you have a session store (no-op here)
+    // TODO: integrate a session store (Redis) to support session invalidation
+    // ... no in-memory session map in this build
+    
+    // Persist updated password
+    if (typeof user.save === 'function') {
+      await user.save();
+    }
     
     res.json({
       success: true,
@@ -329,9 +336,7 @@ router.put('/change-password', verifyUserToken, async (req, res) => {
 // Logout
 router.post('/logout', verifyUserToken, (req, res) => {
   try {
-    // Remove session
-    userSessions.delete(req.userId);
-    
+    // No in-memory session store in this deployment; if you add one, invalidate here.
     res.json({
       success: true,
       message: 'Logged out successfully'
@@ -360,9 +365,11 @@ router.get('/verify-token', verifyUserToken, (req, res) => {
 // Get user's balance
 router.get('/balance', verifyUserToken, (req, res) => {
   try {
+    const userObj = req.user && typeof req.user.toJSON === 'function' ? req.user.toJSON() : (req.user || {});
+    const balance = userObj.balance !== undefined ? userObj.balance : 0;
     res.json({
       success: true,
-      data: req.user.balance
+      data: balance
     });
   } catch (error) {
     console.error('Balance fetch error:', error);
@@ -377,27 +384,30 @@ router.get('/balance', verifyUserToken, (req, res) => {
 router.get('/activities', verifyUserToken, (req, res) => {
   try {
     const { limit = 50, offset = 0, type } = req.query;
-    
-    let activities = req.user.activities || [];
-    
+
+    const userObj = req.user && typeof req.user.toJSON === 'function' ? req.user.toJSON() : (req.user || {});
+    let activities = Array.isArray(userObj.activities) ? userObj.activities.slice() : [];
+
     // Filter by type if provided
     if (type) {
       activities = activities.filter(activity => activity.type === type);
     }
-    
+
     // Sort by date (newest first)
     activities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    
+
     // Apply pagination
-    const paginatedActivities = activities.slice(offset, offset + parseInt(limit));
-    
+    const start = parseInt(offset, 10) || 0;
+    const lim = parseInt(limit, 10) || 50;
+    const paginatedActivities = activities.slice(start, start + lim);
+
     res.json({
       success: true,
       data: {
         activities: paginatedActivities,
         total: activities.length,
-        offset: parseInt(offset),
-        limit: parseInt(limit)
+        offset: start,
+        limit: lim
       }
     });
   } catch (error) {
