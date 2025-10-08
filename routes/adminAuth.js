@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
+const { Op } = require('sequelize');
 
 // Use User model for admin authentication
 const User = require('../models/User');
@@ -9,55 +10,9 @@ const User = require('../models/User');
 // JWT secret (in production, use environment variable)
 const JWT_SECRET = process.env.JWT_SECRET || 'admin_secret_key_2025_elon_investment';
 const JWT_EXPIRES_IN = '24h';
-const MAX_LOGIN_ATTEMPTS = 10;
-const LOCK_TIME = 30 * 60 * 1000; // 30 minutes
-
-// Middleware to verify admin JWT token
-const verifyAdminToken = (req, res, next) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-  
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      error: 'Access denied. No token provided.'
-    });
-  }
-  
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.admin = decoded;
-    next();
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: 'Invalid token.'
-    });
-  }
-};
-
-// Helper function to check if account is locked
-const isAccountLocked = (admin) => {
-  return admin.lockedUntil && admin.lockedUntil > Date.now();
-};
-
-// Helper function to increment login attempts
-const incLoginAttempts = (admin) => {
-  // Calculate when lock expires (if at max attempts)
-  if (admin.loginAttempts + 1 >= MAX_LOGIN_ATTEMPTS && !isAccountLocked(admin)) {
-    admin.lockedUntil = Date.now() + LOCK_TIME;
-  }
-  admin.loginAttempts += 1;
-  return admin;
-};
-
-// Helper function to reset login attempts
-const resetLoginAttempts = (admin) => {
-  admin.loginAttempts = 0;
-  admin.lockedUntil = null;
-  return admin;
-};
-
+// ...existing code...
 // POST /api/admin-auth/login - Admin login
+router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
 
@@ -69,10 +24,11 @@ const resetLoginAttempts = (admin) => {
       });
     }
 
-    // Find admin user in DB (by email or name)
+    // Find admin user in DB (by email)
+    // NOTE: This is inside an async function, so 'await' is valid here
     const admin = await User.findOne({
       where: {
-        email: username
+        [Op.or]: [{ email: username }, { name: username }]
       }
     });
 
@@ -108,12 +64,66 @@ const resetLoginAttempts = (admin) => {
       {
         id: admin.id,
         email: admin.email,
-        name: admin.name,
-        // Add more fields if needed
+        name: admin.name
       },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
+
+    // Optionally update lastLogin field if you have one on the model
+    try {
+      await admin.update({ lastLogin: new Date() });
+    } catch (e) {
+      // non-fatal
+      console.warn('Failed to update lastLogin for admin', e.message || e);
+    }
+
+    // Return success response (exclude password)
+    const { password: _, ...adminData } = admin.toJSON();
+
+    res.json({
+      success: true,
+      data: {
+        admin: adminData,
+        token,
+        expiresIn: JWT_EXPIRES_IN
+      },
+      message: 'Login successful'
+    });
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials',
+        errorType: 'credentials'
+      });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        id: admin.id,
+        email: admin.email,
+        name: admin.name
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    // Optionally update lastLogin field if you have one on the model
+    try {
+      await admin.update({ lastLogin: new Date() });
+    } catch (e) {
+      // non-fatal
+      console.warn('Failed to update lastLogin for admin', e.message || e);
+    }
 
     // Return success response (exclude password)
     const { password: _, ...adminData } = admin.toJSON();
