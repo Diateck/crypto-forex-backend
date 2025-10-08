@@ -6,6 +6,15 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
+// Connect to PostgreSQL using Sequelize
+const sequelize = require('./db');
+sequelize.authenticate()
+  .then(() => {
+    console.log('✅ Connected to PostgreSQL');
+  })
+  .catch((err) => {
+    console.error('❌ PostgreSQL connection error:', err);
+  });
 const PORT = process.env.PORT || 5000;
 
 // Security middleware
