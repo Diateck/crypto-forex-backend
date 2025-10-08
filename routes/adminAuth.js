@@ -6,28 +6,14 @@ const router = express.Router();
 // Mock admin database (in real app, use proper database)
 let adminUsers = [
   {
-    id: 'admin_001',
+    id: 'admin_temp',
     username: 'admin',
-    email: 'admin@eloninvestment.com',
-    password: '$2a$10$Q9QwQwQwQwQwQwQwQwQwQeQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQw', // password: "admin123"
-    fullName: 'System Administrator',
+    email: 'admin@temp.local',
+    password: '$2a$10$wQwQwQwQwQwQwQwQwQwQwOeQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQw', // password: "TempAdmin!2025"
+    fullName: 'Temporary Admin',
     role: 'super_admin',
     permissions: ['all'],
-    createdAt: '2025-08-01T00:00:00Z',
-    lastLogin: null,
-    isActive: true,
-    loginAttempts: 0,
-    lockedUntil: null
-  },
-  {
-    id: 'admin_002',
-    username: 'isrealgabriel5@gmail.com',
-    email: 'isrealgabriel5@gmail.com',
-    password: '$2a$10$Q9QwQwQwQwQwQwQwQwQwQeQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQw', // password: "Isreal5161"
-    fullName: 'Isreal Gabriel',
-    role: 'admin',
-    permissions: ['dashboard', 'notifications'],
-    createdAt: '2025-10-08T00:00:00Z',
+    createdAt: new Date().toISOString(),
     lastLogin: null,
     isActive: true,
     loginAttempts: 0,
@@ -375,6 +361,48 @@ router.get('/login-history', verifyAdminToken, (req, res) => {
       success: false,
       error: 'Internal server error'
     });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// TEMPORARY: Protected endpoint to reset an admin password in-memory
+// Usage: POST /api/admin-auth/temp-reset
+// Body: { username: string, newPassword: string, secret: string }
+// This is intentionally short-lived: require setting the env RESET_ADMIN_SECRET
+// before calling. Remove this endpoint after use or set RESET_ADMIN_SECRET to
+// an unpredictable secret and keep it out of source control.
+router.post('/temp-reset', async (req, res) => {
+  try {
+    const { username, newPassword, secret } = req.body || {};
+
+    const RESET_SECRET = process.env.RESET_ADMIN_SECRET;
+    if (!RESET_SECRET) {
+      return res.status(403).json({ success: false, error: 'Temporary reset not enabled on this server.' });
+    }
+
+    if (!secret || secret !== RESET_SECRET) {
+      return res.status(403).json({ success: false, error: 'Invalid reset secret.' });
+    }
+
+    if (!username || !newPassword) {
+      return res.status(400).json({ success: false, error: 'username and newPassword are required' });
+    }
+
+    const adminIndex = adminUsers.findIndex(a => a.username === username || a.email === username);
+    if (adminIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Admin user not found' });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    adminUsers[adminIndex].password = hashed;
+    // clear locks/attempts so you can login immediately
+    adminUsers[adminIndex].loginAttempts = 0;
+    adminUsers[adminIndex].lockedUntil = null;
+
+    return res.json({ success: true, message: 'Admin password has been reset (in-memory). Please login and change it immediately.' });
+  } catch (error) {
+    console.error('Temp reset error:', error);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
