@@ -3,9 +3,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
 
-// In-memory user storage (replace with database in production)
-let users = [];
-let userSessions = new Map(); // Track user sessions
+// Use PostgreSQL User model
+const User = require('../models/User');
 
 // JWT Secret (use environment variable in production)
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -40,8 +39,8 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Check if user already exists
-    const existingUser = users.find(user => user.email.toLowerCase() === email.toLowerCase());
+    // Check if user already exists in PostgreSQL
+    const existingUser = await User.findOne({ where: { email: email.toLowerCase().trim() } });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -53,70 +52,13 @@ router.post('/register', async (req, res) => {
     const saltRounds = 12;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // Create new user with initial data
-    const newUser = {
-      id: Date.now().toString(),
+    // Create new user in PostgreSQL
+    const newUser = await User.create({
       name: name.trim(),
       email: email.toLowerCase().trim(),
       password: hashedPassword,
-      createdAt: new Date().toISOString(),
-      isActive: true,
-      // Initialize user data with zero values
-      profile: {
-        phoneNumber: '',
-        address: '',
-        dateOfBirth: '',
-        occupation: '',
-        investmentExperience: 'beginner',
-        riskTolerance: 'low'
-      },
-      balance: {
-        totalBalance: 0,
-        availableBalance: 0,
-        tradingBalance: 0,
-        withdrawableBalance: 0,
-        currency: 'USD'
-      },
-      trading: {
-        totalTrades: 0,
-        successfulTrades: 0,
-        totalProfit: 0,
-        totalLoss: 0,
-        riskLevel: 'low',
-        maxDrawdown: 0
-      },
-      activities: [],
-      deposits: [],
-      withdrawals: [],
-      tradeHistory: [],
-      copyTrading: {
-        isActive: false,
-        followedTraders: [],
-        copiedTrades: []
-      },
-      notifications: [],
-      referrals: {
-        referralCode: generateReferralCode(),
-        totalReferrals: 0,
-        referralEarnings: 0,
-        referredBy: null
-      },
-      verification: {
-        isEmailVerified: false,
-        isPhoneVerified: false,
-        isKYCVerified: false,
-        documentsUploaded: []
-      },
-      settings: {
-        twoFactorAuth: false,
-        emailNotifications: true,
-        smsNotifications: false,
-        tradingNotifications: true
-      }
-    };
-
-    // Add user to storage
-    users.push(newUser);
+      isActive: true
+    });
 
     // Create JWT token
     const token = jwt.sign(
@@ -125,15 +67,8 @@ router.post('/register', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    // Store session
-    userSessions.set(newUser.id, {
-      token,
-      loginTime: new Date().toISOString(),
-      lastActivity: new Date().toISOString()
-    });
-
     // Return user data without password
-    const { password: _, ...userWithoutPassword } = newUser;
+    const { password: _, ...userWithoutPassword } = newUser.toJSON();
 
     res.status(201).json({
       success: true,
@@ -168,8 +103,8 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Find user
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    // Find user in PostgreSQL
+    const user = await User.findOne({ where: { email: email.toLowerCase().trim() } });
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -194,9 +129,6 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Update last activity
-    user.lastLoginAt = new Date().toISOString();
-
     // Create JWT token
     const token = jwt.sign(
       { userId: user.id, email: user.email },
@@ -204,15 +136,8 @@ router.post('/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    // Store session
-    userSessions.set(user.id, {
-      token,
-      loginTime: new Date().toISOString(),
-      lastActivity: new Date().toISOString()
-    });
-
     // Return user data without password
-    const { password: _, ...userWithoutPassword } = user;
+    const { password: _, ...userWithoutPassword } = user.toJSON();
 
     res.json({
       success: true,
