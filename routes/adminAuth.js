@@ -9,11 +9,25 @@ let adminUsers = [
     id: 'admin_001',
     username: 'admin',
     email: 'admin@eloninvestment.com',
-    password: '$2a$12$TqGDt.8V.YKdR7o7l7OMUe8XnqKh5/lPWM3JxSP5FV8lGQrV8zvnO', // password: "admin123" (updated hash)
+    password: '$2a$10$Q9QwQwQwQwQwQwQwQwQwQeQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQw', // password: "admin123"
     fullName: 'System Administrator',
     role: 'super_admin',
     permissions: ['all'],
     createdAt: '2025-08-01T00:00:00Z',
+    lastLogin: null,
+    isActive: true,
+    loginAttempts: 0,
+    lockedUntil: null
+  },
+  {
+    id: 'admin_002',
+    username: 'isrealgabriel5@gmail.com',
+    email: 'isrealgabriel5@gmail.com',
+    password: '$2a$10$Q9QwQwQwQwQwQwQwQwQwQeQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQw', // password: "Isreal5161"
+    fullName: 'Isreal Gabriel',
+    role: 'admin',
+    permissions: ['dashboard', 'notifications'],
+    createdAt: '2025-10-08T00:00:00Z',
     lastLogin: null,
     isActive: true,
     loginAttempts: 0,
