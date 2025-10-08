@@ -98,53 +98,6 @@ router.post('/login', async (req, res) => {
     });
   }
 });
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid credentials',
-        errorType: 'credentials'
-      });
-    }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      {
-        id: admin.id,
-        email: admin.email,
-        name: admin.name
-      },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
-
-    // Optionally update lastLogin field if you have one on the model
-    try {
-      await admin.update({ lastLogin: new Date() });
-    } catch (e) {
-      // non-fatal
-      console.warn('Failed to update lastLogin for admin', e.message || e);
-    }
-
-    // Return success response (exclude password)
-    const { password: _, ...adminData } = admin.toJSON();
-
-    res.json({
-      success: true,
-      data: {
-        admin: adminData,
-        token,
-        expiresIn: JWT_EXPIRES_IN
-      },
-      message: 'Login successful'
-    });
-  } catch (error) {
-    console.error('Admin login error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
-  }
-});
 
 // POST /api/admin-auth/logout - Admin logout
 router.post('/logout', verifyAdminToken, (req, res) => {
