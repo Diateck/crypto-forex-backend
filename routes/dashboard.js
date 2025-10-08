@@ -236,48 +236,43 @@ router.get('/stats', async (req, res) => {
 // User Notifications
 router.get('/notifications', async (req, res) => {
   try {
-    const notifications = {
-      success: true,
-      data: {
-        unreadCount: 3,
-        notifications: [
-          {
-            id: 1,
-            type: "trade",
-            title: "Trade Executed",
-            message: "Your BTC/USD buy order has been executed",
-            read: false,
-            timestamp: "2024-09-29T15:30:00Z"
-          },
-          {
-            id: 2,
-            type: "deposit",
-            title: "Deposit Confirmed", 
-            message: "Your $1,000 deposit has been confirmed",
-            read: false,
-            timestamp: "2024-09-29T12:15:00Z"
-          },
-          {
-            id: 3,
-            type: "kyc",
-            title: "KYC Approved",
-            message: "Your identity verification has been approved",
-            read: false,
-            timestamp: "2024-09-29T09:00:00Z"
-          },
-          {
-            id: 4,
-            type: "system",
-            title: "Maintenance Notice",
-            message: "Scheduled maintenance on Oct 1st, 2:00 AM UTC",
-            read: true,
-            timestamp: "2024-09-28T16:00:00Z"
-          }
-        ]
+    // Return notifications as an array for frontend compatibility
+    const notifications = [
+      {
+        id: 1,
+        type: "trade",
+        title: "Trade Executed",
+        message: "Your BTC/USD buy order has been executed",
+        read: false,
+        timestamp: "2024-09-29T15:30:00Z"
+      },
+      {
+        id: 2,
+        type: "deposit",
+        title: "Deposit Confirmed", 
+        message: "Your $1,000 deposit has been confirmed",
+        read: false,
+        timestamp: "2024-09-29T12:15:00Z"
+      },
+      {
+        id: 3,
+        type: "kyc",
+        title: "KYC Approved",
+        message: "Your identity verification has been approved",
+        read: false,
+        timestamp: "2024-09-29T09:00:00Z"
+      },
+      {
+        id: 4,
+        type: "system",
+        title: "Maintenance Notice",
+        message: "Scheduled maintenance on Oct 1st, 2:00 AM UTC",
+        read: true,
+        timestamp: "2024-09-28T16:00:00Z"
       }
-    };
-
-    res.status(200).json(notifications);
+    ];
+  // Return a plain array — frontend expects an array to map over
+  res.status(200).json(notifications);
   } catch (error) {
     res.status(500).json({
       success: false,
