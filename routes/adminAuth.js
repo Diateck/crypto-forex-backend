@@ -3,23 +3,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
 
-// Mock admin database (in real app, use proper database)
-let adminUsers = [
-  {
-    id: 'admin_temp',
-    username: 'admin',
-    email: 'admin@temp.local',
-    password: '$2a$10$wQwQwQwQwQwQwQwQwQwQwOeQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQwQw', // password: "TempAdmin!2025"
-    fullName: 'Temporary Admin',
-    role: 'super_admin',
-    permissions: ['all'],
-    createdAt: new Date().toISOString(),
-    lastLogin: null,
-    isActive: true,
-    loginAttempts: 0,
-    lockedUntil: null
-  }
-];
+// Use User model for admin authentication
+const User = require('../models/User');
 
 // JWT secret (in production, use environment variable)
 const JWT_SECRET = process.env.JWT_SECRET || 'admin_secret_key_2025_elon_investment';
@@ -73,10 +58,9 @@ const resetLoginAttempts = (admin) => {
 };
 
 // POST /api/admin-auth/login - Admin login
-router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-    
+
     // Validation
     if (!username || !password) {
       return res.status(400).json({
@@ -84,75 +68,56 @@ router.post('/login', async (req, res) => {
         error: 'Username and password are required'
       });
     }
-    
-    // Find admin user
-    const adminIndex = adminUsers.findIndex(admin => 
-      admin.username === username || admin.email === username
-    );
-    
-    if (adminIndex === -1) {
+
+    // Find admin user in DB (by email or name)
+    const admin = await User.findOne({
+      where: {
+        email: username
+      }
+    });
+
+    if (!admin) {
       return res.status(401).json({
         success: false,
         error: 'Invalid credentials',
-        errorType: 'credentials' // Add error type for frontend
+        errorType: 'credentials'
       });
     }
-    
-    const admin = adminUsers[adminIndex];
-    
+
     // Check if account is active
-    if (!admin.isActive) {
+    if (admin.isActive === false) {
       return res.status(401).json({
         success: false,
         error: 'Account is deactivated'
       });
     }
-    
-    // Check if account is locked
-    if (isAccountLocked(admin)) {
-      const lockTimeRemaining = Math.ceil((admin.lockedUntil - Date.now()) / 60000);
-      return res.status(423).json({
-        success: false,
-        error: `Account is locked. Try again in ${lockTimeRemaining} minutes.`
-      });
-    }
-    
+
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, admin.password);
-    
+
     if (!isPasswordValid) {
-      // Increment login attempts
-      adminUsers[adminIndex] = incLoginAttempts(admin);
-      
-      const attemptsLeft = MAX_LOGIN_ATTEMPTS - admin.loginAttempts;
       return res.status(401).json({
         success: false,
-        error: attemptsLeft > 0 
-          ? `Invalid credentials. ${attemptsLeft} attempts remaining.`
-          : 'Account locked due to multiple failed attempts.',
-        errorType: 'credentials' // Add error type for frontend
+        error: 'Invalid credentials',
+        errorType: 'credentials'
       });
     }
-    
-    // Successful login - reset attempts and update last login
-    adminUsers[adminIndex] = resetLoginAttempts(admin);
-    adminUsers[adminIndex].lastLogin = new Date().toISOString();
-    
+
     // Generate JWT token
     const token = jwt.sign(
       {
         id: admin.id,
-        username: admin.username,
-        role: admin.role,
-        permissions: admin.permissions
+        email: admin.email,
+        name: admin.name,
+        // Add more fields if needed
       },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
-    
+
     // Return success response (exclude password)
-    const { password: _, ...adminData } = admin;
-    
+    const { password: _, ...adminData } = admin.toJSON();
+
     res.json({
       success: true,
       data: {
@@ -162,7 +127,6 @@ router.post('/login', async (req, res) => {
       },
       message: 'Login successful'
     });
-    
   } catch (error) {
     console.error('Admin login error:', error);
     res.status(500).json({
