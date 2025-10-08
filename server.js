@@ -42,12 +42,53 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
 // Rate limiting
+// Create a keyGenerator that uses the authenticated user's id (if present) to avoid
+// punishing multiple users behind the same NAT/IP. Fallback to IP address.
+const keyGenerator = (req /*, res*/) => {
+  try {
+    const auth = req.headers.authorization;
+    if (auth && auth.startsWith('Bearer ')) {
+      const token = auth.split(' ')[1];
+      // Try to decode token payload without verifying to extract userId
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+        if (payload && payload.userId) return `user:${payload.userId}`;
+      }
+    }
+  } catch (e) {
+    // ignore and fallback to IP
+  }
+  return req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
+};
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  max: 100, // limit per keyGenerator (user or IP)
+  keyGenerator,
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.set('Retry-After', String(Math.ceil(15 * 60))); // advise client to retry after window
+    return res.status(429).json({
+      success: false,
+      message: 'Too many requests. Please slow down and try again later.'
+    });
+  }
 });
 app.use('/api/', limiter);
+
+// Lightweight limiter for health endpoints to ensure they remain responsive
+const healthLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // allow up to 60 pings per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    return res.status(429).json({ success: false, message: 'Too many health checks' });
+  }
+});
+app.use(['/ping', '/health', '/keep-alive', '/api/keep-alive'], healthLimiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
