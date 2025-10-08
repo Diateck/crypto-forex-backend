@@ -76,6 +76,12 @@ const limiter = rateLimit({
     });
   }
 });
+
+// Register admin routes BEFORE rate limiter so they are NOT rate limited
+app.use('/api/admin-auth', require('./routes/adminAuth').router);
+app.use('/api/admin', require('./routes/admin'));
+
+// Apply rate limiter to all other /api/ routes
 app.use('/api/', limiter);
 
 // Lightweight limiter for health endpoints to ensure they remain responsive
@@ -175,8 +181,7 @@ app.use('/api/plans', require('./routes/plans')); // Investment plans
 app.use('/api/kyc', require('./routes/kyc')); // KYC verification
 app.use('/api/referrals', require('./routes/referrals')); // Referral system
 app.use('/api/loans', require('./routes/loans')); // Loan applications
-app.use('/api/admin-auth', require('./routes/adminAuth').router);
-app.use('/api/admin', require('./routes/admin'));
+// ...admin routes registered above, not rate limited...
 
 // Keep-alive routes (both with and without /api prefix for flexibility)
 app.use('/keep-alive', require('./routes/keepAlive'));
