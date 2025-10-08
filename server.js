@@ -19,13 +19,29 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// CORS configuration
+// Professional CORS configuration
 app.use(cors({
   origin: [
     'https://crypto-forex-frontend.vercel.app',
     process.env.FRONTEND_URL || 'http://localhost:3000'
   ],
-  credentials: true
+  credentials: true,
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
+
+// Handle OPTIONS preflight for all routes
+app.options('*', cors({
+  origin: [
+    'https://crypto-forex-frontend.vercel.app',
+    process.env.FRONTEND_URL || 'http://localhost:3000'
+  ],
+  credentials: true,
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  optionsSuccessStatus: 204
 }));
 
 // Body parsing middleware
