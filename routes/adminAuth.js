@@ -137,19 +137,16 @@ router.post('/logout', verifyAdminToken, (req, res) => {
 });
 
 // GET /api/admin-auth/profile - Get admin profile
-router.get('/profile', verifyAdminToken, (req, res) => {
+router.get('/profile', verifyAdminToken, async (req, res) => {
   try {
-    const admin = adminUsers.find(a => a.id === req.admin.id);
-    
+    const admin = await User.findByPk(req.admin.id);
     if (!admin) {
       return res.status(404).json({
         success: false,
         error: 'Admin not found'
       });
     }
-    
-    const { password: _, ...adminData } = admin;
-    
+    const { password: _, ...adminData } = admin.toJSON();
     res.json({
       success: true,
       data: { admin: adminData }
@@ -166,7 +163,6 @@ router.get('/profile', verifyAdminToken, (req, res) => {
 router.put('/change-password', verifyAdminToken, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    
     // Validation
     if (!currentPassword || !newPassword) {
       return res.status(400).json({
@@ -174,47 +170,36 @@ router.put('/change-password', verifyAdminToken, async (req, res) => {
         error: 'Current password and new password are required'
       });
     }
-    
     if (newPassword.length < 6) {
       return res.status(400).json({
         success: false,
         error: 'New password must be at least 6 characters long'
       });
     }
-    
     // Find admin
-    const adminIndex = adminUsers.findIndex(a => a.id === req.admin.id);
-    
-    if (adminIndex === -1) {
+    const admin = await User.findByPk(req.admin.id);
+    if (!admin) {
       return res.status(404).json({
         success: false,
         error: 'Admin not found'
       });
     }
-    
-    const admin = adminUsers[adminIndex];
-    
     // Verify current password
     const isCurrentPasswordValid = await bcrypt.compare(currentPassword, admin.password);
-    
     if (!isCurrentPasswordValid) {
       return res.status(401).json({
         success: false,
         error: 'Current password is incorrect'
       });
     }
-    
     // Hash new password
     const hashedNewPassword = await bcrypt.hash(newPassword, 10);
-    
     // Update password
-    adminUsers[adminIndex].password = hashedNewPassword;
-    
+    await admin.update({ password: hashedNewPassword });
     res.json({
       success: true,
       message: 'Password changed successfully'
     });
-    
   } catch (error) {
     console.error('Change password error:', error);
     res.status(500).json({
@@ -227,43 +212,39 @@ router.put('/change-password', verifyAdminToken, async (req, res) => {
 // PUT /api/admin-auth/update-profile - Update admin profile
 router.put('/update-profile', verifyAdminToken, async (req, res) => {
   try {
-    const { fullName, email, username } = req.body;
-    
+    const { name, email } = req.body;
     // Find admin
-    const adminIndex = adminUsers.findIndex(a => a.id === req.admin.id);
-    
-    if (adminIndex === -1) {
+    const admin = await User.findByPk(req.admin.id);
+    if (!admin) {
       return res.status(404).json({
         success: false,
         error: 'Admin not found'
       });
     }
-    
     // Check if username/email already exists (for other admins)
-    const existingAdmin = adminUsers.find(a => 
-      a.id !== req.admin.id && (a.username === username || a.email === email)
-    );
-    
+    const existingAdmin = await User.findOne({
+      where: {
+        [Op.or]: [
+          { email },
+          { name }
+        ],
+        id: { [Op.ne]: req.admin.id }
+      }
+    });
     if (existingAdmin) {
       return res.status(400).json({
         success: false,
         error: 'Username or email already exists'
       });
     }
-    
     // Update profile
-    if (fullName) adminUsers[adminIndex].fullName = fullName;
-    if (email) adminUsers[adminIndex].email = email;
-    if (username) adminUsers[adminIndex].username = username;
-    
-    const { password: _, ...adminData } = adminUsers[adminIndex];
-    
+    await admin.update({ name, email });
+    const { password: _, ...adminData } = admin.toJSON();
     res.json({
       success: true,
       data: { admin: adminData },
       message: 'Profile updated successfully'
     });
-    
   } catch (error) {
     console.error('Update profile error:', error);
     res.status(500).json({
@@ -285,10 +266,15 @@ router.post('/verify-token', verifyAdminToken, (req, res) => {
 });
 
 // GET /api/admin-auth/login-history - Get login history
-router.get('/login-history', verifyAdminToken, (req, res) => {
+router.get('/login-history', verifyAdminToken, async (req, res) => {
   try {
-    const admin = adminUsers.find(a => a.id === req.admin.id);
-    
+    const admin = await User.findByPk(req.admin.id);
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        error: 'Admin not found'
+      });
+    }
     // Mock login history (in real app, store in database)
     const loginHistory = [
       {
@@ -299,7 +285,6 @@ router.get('/login-history', verifyAdminToken, (req, res) => {
         status: 'success'
       }
     ];
-    
     res.json({
       success: true,
       data: { loginHistory }
@@ -313,41 +298,33 @@ router.get('/login-history', verifyAdminToken, (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
-// TEMPORARY: Protected endpoint to reset an admin password in-memory
+// TEMPORARY: Protected endpoint to reset an admin password in DB
 // Usage: POST /api/admin-auth/temp-reset
 // Body: { username: string, newPassword: string, secret: string }
-// This is intentionally short-lived: require setting the env RESET_ADMIN_SECRET
-// before calling. Remove this endpoint after use or set RESET_ADMIN_SECRET to
-// an unpredictable secret and keep it out of source control.
 router.post('/temp-reset', async (req, res) => {
   try {
     const { username, newPassword, secret } = req.body || {};
-
     const RESET_SECRET = process.env.RESET_ADMIN_SECRET;
     if (!RESET_SECRET) {
       return res.status(403).json({ success: false, error: 'Temporary reset not enabled on this server.' });
     }
-
     if (!secret || secret !== RESET_SECRET) {
       return res.status(403).json({ success: false, error: 'Invalid reset secret.' });
     }
-
     if (!username || !newPassword) {
       return res.status(400).json({ success: false, error: 'username and newPassword are required' });
     }
-
-    const adminIndex = adminUsers.findIndex(a => a.username === username || a.email === username);
-    if (adminIndex === -1) {
+    const admin = await User.findOne({
+      where: {
+        [Op.or]: [{ email: username }, { name: username }]
+      }
+    });
+    if (!admin) {
       return res.status(404).json({ success: false, error: 'Admin user not found' });
     }
-
     const hashed = await bcrypt.hash(newPassword, 10);
-    adminUsers[adminIndex].password = hashed;
-    // clear locks/attempts so you can login immediately
-    adminUsers[adminIndex].loginAttempts = 0;
-    adminUsers[adminIndex].lockedUntil = null;
-
-    return res.json({ success: true, message: 'Admin password has been reset (in-memory). Please login and change it immediately.' });
+    await admin.update({ password: hashed });
+    return res.json({ success: true, message: 'Admin password has been reset. Please login and change it immediately.' });
   } catch (error) {
     console.error('Temp reset error:', error);
     return res.status(500).json({ success: false, error: 'Internal server error' });
