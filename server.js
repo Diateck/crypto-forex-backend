@@ -20,16 +20,13 @@ const PORT = process.env.PORT || 5000;
 // Security middleware
 app.use(helmet());
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
-});
-app.use('/api/', limiter);
+// If running behind a proxy (Render, Vercel, etc.), trust proxy so express-rate-limit
+// and other middleware can read the correct client IP from X-Forwarded-For.
+app.set('trust proxy', true);
 
-// Professional CORS configuration
-app.use(cors({
+// Professional CORS configuration - run before rate limiting so preflight requests
+// receive the proper CORS headers and are not blocked by rate limiter.
+const corsOptions = {
   origin: [
     'https://crypto-forex-frontend.vercel.app',
     process.env.FRONTEND_URL || 'http://localhost:3000'
@@ -39,19 +36,18 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'cache-control'],
   preflightContinue: false,
   optionsSuccessStatus: 204
-}));
+};
+app.use(cors(corsOptions));
+// Handle OPTIONS preflight for all routes using same cors options
+app.options('*', cors(corsOptions));
 
-// Handle OPTIONS preflight for all routes
-app.options('*', cors({
-  origin: [
-    'https://crypto-forex-frontend.vercel.app',
-    process.env.FRONTEND_URL || 'http://localhost:3000'
-  ],
-  credentials: true,
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'cache-control'],
-  optionsSuccessStatus: 204
-}));
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.'
+});
+app.use('/api/', limiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -178,11 +174,23 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-});
+// Ensure database tables are created, then start server
+sequelize.sync({ alter: true })
+  .then(() => {
+    console.log('✅ Database synchronized');
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+      console.log(`📊 Health check: http://localhost:${PORT}/health`);
+    });
+  })
+  .catch((err) => {
+    console.error('❌ Database synchronization error:', err);
+    // Still attempt to start server so health checks can show up; but registration/login will fail until DB is reachable
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT} (DB sync failed)`);
+    });
+  });
 
 module.exports = app;
