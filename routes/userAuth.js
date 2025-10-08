@@ -97,11 +97,11 @@ router.post('/register', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('Registration error:', error && error.stack ? error.stack : error);
     res.status(500).json({
       success: false,
       message: 'Internal server error during registration',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: error && error.message ? error.message : 'Internal server error'
     });
   }
 });
@@ -166,11 +166,11 @@ router.post('/login', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Login error:', error && error.stack ? error.stack : error);
     res.status(500).json({
       success: false,
       message: 'Internal server error during login',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: error && error.message ? error.message : 'Internal server error'
     });
   }
 });
